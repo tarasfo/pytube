@@ -301,20 +301,36 @@ def get_throttling_function_code(js: str) -> str:
     :returns:
         The name of the function used to compute the throttling parameter.
     """
-    # Begin by extracting the correct function name
-    name = re.escape(get_throttling_function_name(js))
+    try:
+        # Begin by extracting the correct function name
+        name = re.escape(get_throttling_function_name(js))
 
-    # Identify where the function is defined
-    pattern_start = r"%s=function\(\w\)" % name
-    regex = re.compile(pattern_start)
-    match = regex.search(js)
+        # Identify where the function is defined
+        pattern_start = r"%s=function\(\w\)" % name
+        regex = re.compile(pattern_start)
+        match = regex.search(js)
 
-    # Extract the code within curly braces for the function itself, and merge any split lines
-    code_lines_list = find_object_from_startpoint(js, match.span()[1]).split("\n")
-    joined_lines = "".join(code_lines_list)
+        # Extract the code within curly braces for the function itself, and merge any split lines
+        code_lines_list = find_object_from_startpoint(js, match.span()[1]).split("\n")
+        joined_lines = "".join(code_lines_list)
 
-    # Prepend function definition (e.g. `Dea=function(a)`)
-    return match.group(0) + joined_lines
+        # Prepend function definition (e.g. `Dea=function(a)`)
+        return match.group(0) + joined_lines
+    except Exception as e:
+        # Begin by extracting the correct function name
+        name = "hha"
+
+        # Identify where the function is defined
+        pattern_start = r"%s=function\(\w\)" % name
+        regex = re.compile(pattern_start)
+        match = regex.search(js)
+
+        # Extract the code within curly braces for the function itself, and merge any split lines
+        code_lines_list = find_object_from_startpoint(js, match.span()[1]).split("\n")
+        joined_lines = "".join(code_lines_list)
+
+        # Prepend function definition (e.g. `Dea=function(a)`)
+        return match.group(0) + joined_lines
 
 
 def get_throttling_function_array(js: str) -> List[Any]:

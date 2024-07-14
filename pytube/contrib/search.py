@@ -171,12 +171,14 @@ class Search:
                 vid_id = vid_renderer["videoId"]
                 vid_url = f"https://www.youtube.com/watch?v={vid_id}"
                 vid_title = vid_renderer["title"]["runs"][0]["text"]
-                vid_channel_name = vid_renderer["ownerText"]["runs"][0]["text"]
+
                 try:
+                    vid_channel_name = vid_renderer["ownerText"]["runs"][0]["text"]
                     vid_channel_uri = vid_renderer["ownerText"]["runs"][0][
                         "navigationEndpoint"
                     ]["commandMetadata"]["webCommandMetadata"]["url"]
                 except:
+                    vid_channel_name = ""
                     vid_channel_uri = ""
                 # Livestreams have "runs", non-livestreams have "simpleText",
                 #  and scheduled releases do not have 'viewCountText'

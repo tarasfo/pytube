@@ -341,74 +341,81 @@ def get_throttling_function_array(js: str) -> List[Any]:
     :returns:
         The array of various integers, arrays, and functions.
     """
-    raw_code = get_throttling_function_code(js)
+    try:
+        raw_code = get_throttling_function_code(js)
 
-    array_start = r",c=\["
-    array_regex = re.compile(array_start)
-    match = array_regex.search(raw_code)
+        array_start = r",c=\["
+        array_regex = re.compile(array_start)
+        match = array_regex.search(raw_code)
 
-    array_raw = find_object_from_startpoint(raw_code, match.span()[1] - 1)
-    str_array = throttling_array_split(array_raw)
+        array_raw = find_object_from_startpoint(raw_code, match.span()[1] - 1)
+        str_array = throttling_array_split(array_raw)
 
-    converted_array = []
-    for el in str_array:
-        try:
-            converted_array.append(int(el))
-            continue
-        except ValueError:
-            # Not an integer value.
-            pass
+        converted_array = []
+        for el in str_array:
+            try:
+                converted_array.append(int(el))
+                continue
+            except ValueError:
+                # Not an integer value.
+                pass
 
-        if el == "null":
-            converted_array.append(None)
-            continue
-
-        if el.startswith('"') and el.endswith('"'):
-            # Convert e.g. '"abcdef"' to string without quotation marks, 'abcdef'
-            converted_array.append(el[1:-1])
-            continue
-
-        if el.startswith("function"):
-            mapper = (
-                (
-                    r"{for\(\w=\(\w%\w\.length\+\w\.length\)%\w\.length;\w--;\)\w\.unshift\(\w.pop\(\)\)}",
-                    throttling_unshift,
-                ),  # noqa:E501
-                (r"{\w\.reverse\(\)}", throttling_reverse),
-                (r"{\w\.push\(\w\)}", throttling_push),
-                (r";var\s\w=\w\[0\];\w\[0\]=\w\[\w\];\w\[\w\]=\w}", throttling_swap),
-                (r"case\s\d+", throttling_cipher_function),
-                (
-                    r"\w\.splice\(0,1,\w\.splice\(\w,1,\w\[0\]\)\[0\]\)",
-                    throttling_nested_splice,
-                ),  # noqa:E501
-                (r";\w\.splice\(\w,1\)}", js_splice),
-                (
-                    r"\w\.splice\(-\w\)\.reverse\(\)\.forEach\(function\(\w\){\w\.unshift\(\w\)}\)",
-                    throttling_prepend,
-                ),  # noqa:E501
-                (
-                    r"for\(var \w=\w\.length;\w;\)\w\.push\(\w\.splice\(--\w,1\)\[0\]\)}",
-                    throttling_reverse,
-                ),  # noqa:E501
-            )
-
-            found = False
-            for pattern, fn in mapper:
-                if re.search(pattern, el):
-                    converted_array.append(fn)
-                    found = True
-            if found:
+            if el == "null":
+                converted_array.append(None)
                 continue
 
-        converted_array.append(el)
+            if el.startswith('"') and el.endswith('"'):
+                # Convert e.g. '"abcdef"' to string without quotation marks, 'abcdef'
+                converted_array.append(el[1:-1])
+                continue
 
-    # Replace null elements with array itself
-    for i in range(len(converted_array)):
-        if converted_array[i] is None:
-            converted_array[i] = converted_array
+            if el.startswith("function"):
+                mapper = (
+                    (
+                        r"{for\(\w=\(\w%\w\.length\+\w\.length\)%\w\.length;\w--;\)\w\.unshift\(\w.pop\(\)\)}",
+                        throttling_unshift,
+                    ),  # noqa:E501
+                    (r"{\w\.reverse\(\)}", throttling_reverse),
+                    (r"{\w\.push\(\w\)}", throttling_push),
+                    (
+                        r";var\s\w=\w\[0\];\w\[0\]=\w\[\w\];\w\[\w\]=\w}",
+                        throttling_swap,
+                    ),
+                    (r"case\s\d+", throttling_cipher_function),
+                    (
+                        r"\w\.splice\(0,1,\w\.splice\(\w,1,\w\[0\]\)\[0\]\)",
+                        throttling_nested_splice,
+                    ),  # noqa:E501
+                    (r";\w\.splice\(\w,1\)}", js_splice),
+                    (
+                        r"\w\.splice\(-\w\)\.reverse\(\)\.forEach\(function\(\w\){\w\.unshift\(\w\)}\)",
+                        throttling_prepend,
+                    ),  # noqa:E501
+                    (
+                        r"for\(var \w=\w\.length;\w;\)\w\.push\(\w\.splice\(--\w,1\)\[0\]\)}",
+                        throttling_reverse,
+                    ),  # noqa:E501
+                )
 
-    return converted_array
+                found = False
+                for pattern, fn in mapper:
+                    if re.search(pattern, el):
+                        converted_array.append(fn)
+                        found = True
+                if found:
+                    continue
+
+            converted_array.append(el)
+
+        # Replace null elements with array itself
+        for i in range(len(converted_array)):
+            if converted_array[i] is None:
+                converted_array[i] = converted_array
+
+        return converted_array
+    except Exception as e:
+        print("get_throttling_function_array", e)
+    return []
 
 
 def get_throttling_plan(js: str):
@@ -424,29 +431,31 @@ def get_throttling_plan(js: str):
     :returns:
         The full function code for computing the throttlign parameter.
     """
-    raw_code = get_throttling_function_code(js)
-
-    transform_start = r"try{"
-    plan_regex = re.compile(transform_start)
-    match = plan_regex.search(raw_code)
     try:
+        raw_code = get_throttling_function_code(js)
+
+        transform_start = r"try{"
+        plan_regex = re.compile(transform_start)
+        match = plan_regex.search(raw_code)
+
         transform_plan_raw = find_object_from_startpoint(raw_code, match.span()[1] - 1)
+
+        # Steps are either c[x](c[y]) or c[x](c[y],c[z])
+        step_start = r"c\[(\d+)\]\(c\[(\d+)\](,c(\[(\d+)\]))?\)"
+        step_regex = re.compile(step_start)
+        matches = step_regex.findall(transform_plan_raw)
+        transform_steps = []
+        for match in matches:
+            if match[4] != "":
+                transform_steps.append((match[0], match[1], match[4]))
+            else:
+                transform_steps.append((match[0], match[1]))
+
+        return transform_steps
     except Exception as e:
-        print("get_throttling_plan error", e)
-        transform_plan_raw = js
+        print("get_throttling_plan", e)
 
-    # Steps are either c[x](c[y]) or c[x](c[y],c[z])
-    step_start = r"c\[(\d+)\]\(c\[(\d+)\](,c(\[(\d+)\]))?\)"
-    step_regex = re.compile(step_start)
-    matches = step_regex.findall(transform_plan_raw)
-    transform_steps = []
-    for match in matches:
-        if match[4] != "":
-            transform_steps.append((match[0], match[1], match[4]))
-        else:
-            transform_steps.append((match[0], match[1]))
-
-    return transform_steps
+    return []
 
 
 def reverse(arr: List, _: Optional[Any]):
